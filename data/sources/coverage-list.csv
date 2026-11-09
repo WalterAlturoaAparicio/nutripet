@@ -1,0 +1,33 @@
+id,label,query,state
+arroz_crudo,Arroz crudo,arroz,raw
+arroz_cocido,Arroz cocido,arroz,cooked
+huevo_crudo,Huevo crudo,huevo,raw
+huevo_cocido,Huevo cocido,huevo,cooked
+pollo_crudo,Pollo crudo,pollo,raw
+pollo_cocido,Pollo cocido,pollo,cooked
+res_cruda,Carne de res cruda,res,raw
+res_cocida,Carne de res cocida,res,cooked
+pescado_crudo,Pescado crudo,pescado,raw
+pescado_cocido,Pescado cocido,pescado,cooked
+pan,Pan,pan,
+papa_cruda,Papa cruda,papa,raw
+papa_cocida,Papa cocida,papa,cooked
+platano_crudo,Plátano crudo,platano,raw
+platano_cocido,Plátano cocido,platano,cooked
+frijol_cocido,Fríjol cocido,frijol,cooked
+lenteja_cocida,Lenteja cocida,lentejas,cooked
+leche,Leche,leche,
+queso,Queso,queso,
+avena,Avena,avena,
+mango,Mango,mango,
+banano,Banano,banano,
+guayaba,Guayaba,guayaba,
+tomate,Tomate,tomate,
+zanahoria,Zanahoria,zanahoria,
+cebolla,Cebolla,cebolla,
+empacados,Alimentos empacados,,packaged
+arepa_casera,Arepa casera,arepa casera,
+queso_campesino,Queso campesino,queso campesino,
+patacon,Patacón,patacon,
+preparaciones_tipicas,Sancocho (preparaciones típicas),sancocho,
+panela,Panela,panela,

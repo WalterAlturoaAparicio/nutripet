@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="newborn">
+  <!-- NutriPet original artwork. Anchors: head (100, 108) r=38; body (100, 156) 44×30. -->
+  
+  <ellipse cx="100" cy="190" rx="46.2" ry="6" fill="#000" opacity="0.08"/>
+  <path d="M135.2 162 q 21.559999999999995 -9 13.86 -27.299999999999997" stroke="#f2a65a" stroke-width="10.64" stroke-linecap="round" fill="none"/>
+  <ellipse cx="100" cy="156" rx="44" ry="30" fill="#f2a65a"/>
+  <ellipse cx="100" cy="160.5" rx="24.200000000000003" ry="21" fill="#fde3c3"/>
+  
+  <path d="M67.7 94.7 L79.1 68.1 L94.3 76.84 Z" fill="#f2a65a"/>
+    <path d="M72.64 90.9 L79.1 76.46 L88.6 78.36 Z" fill="#f6a5a5" opacity="0.7"/>
+  <path d="M132.3 94.7 L120.9 68.1 L105.7 76.84 Z" fill="#f2a65a"/>
+    <path d="M127.36 90.9 L120.9 76.46 L111.4 78.36 Z" fill="#f6a5a5" opacity="0.7"/>
+  <circle cx="100" cy="108" r="38" fill="#f2a65a"/>
+  
+  <ellipse cx="100" cy="121.3" rx="19" ry="13.68" fill="#fde3c3"/>
+  <g class="pet-eyes">
+    <circle cx="85.56" cy="107.24" r="6.460000000000001" fill="#3b2f2f"/>
+    <circle cx="114.44" cy="107.24" r="6.460000000000001" fill="#3b2f2f"/>
+    <circle cx="87.821" cy="104.979" r="2.1318000000000006" fill="#fff"/>
+    <circle cx="116.701" cy="104.979" r="2.1318000000000006" fill="#fff"/>
+  </g>
+  <ellipse cx="79.1" cy="117.5" rx="4.94" ry="3.04" fill="#f6a5a5" opacity="0.8"/>
+  <ellipse cx="120.9" cy="117.5" rx="4.94" ry="3.04" fill="#f6a5a5" opacity="0.8"/>
+  <path d="M97.34 115.6 h5.32 l-2.66 3.04 z" fill="#e57a7a"/>
+  <path d="M100 118.64 q -3.8000000000000003 5.32 -7.6000000000000005 1.52 M100 118.64 q 3.8000000000000003 5.32 7.6000000000000005 1.52" stroke="#3b2f2f" stroke-width="1.52" fill="none" stroke-linecap="round"/>
+  <path d="M82.9 120.16 h-15.200000000000001 M82.9 123.96 l-14.44 3.04 M117.1 120.16 h15.200000000000001 M117.1 123.96 l14.44 3.04" stroke="#3b2f2f" stroke-width="0.9500000000000001" opacity="0.5" stroke-linecap="round"/>
+</svg>

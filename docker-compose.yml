@@ -1,0 +1,43 @@
+# Production-like deployment: NutriPet + Caddy (automatic HTTPS).
+#   cp .env.example .env.production   # set SESSION_SECRET, SETUP_TOKEN, DOMAIN; never commit it
+#   docker compose up -d --build
+# One-off jobs (catalog import, coverage, backups) use the "tools" profile:
+#   docker compose --profile tools run --rm tools pnpm fetch:usda
+#   docker compose --profile tools run --rm tools pnpm import:foods --all
+services:
+  app:
+    build: { context: ., target: runner }
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      NODE_ENV: production
+      COOKIE_SECURE: "true"
+      DATABASE_PATH: /data/nutripet.db
+    volumes:
+      - ./data:/data
+
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    depends_on: [app]
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  tools:
+    profiles: [tools]
+    build: { context: ., target: tools }
+    env_file: .env.production
+    environment:
+      DATABASE_PATH: /data/nutripet.db
+    volumes:
+      - ./data:/app/data
+      - ./data:/data
+
+volumes:
+  caddy_data:
+  caddy_config:

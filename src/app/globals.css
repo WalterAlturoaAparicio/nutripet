@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    font-family: ui-rounded, 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  button,
+  [role='button'],
+  input,
+  select {
+    min-height: 44px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-card bg-surface-raised p-4 shadow-sm ring-1 ring-black/5;
+  }
+  .btn {
+    @apply inline-flex min-h-touch items-center justify-center gap-2 rounded-full px-5 font-semibold transition active:scale-[0.98] disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-ink text-white;
+  }
+  .btn-secondary {
+    @apply btn bg-surface-sunken text-ink;
+  }
+  .input {
+    @apply w-full rounded-xl border border-black/10 bg-white px-3 text-base outline-none focus:border-target focus:ring-2 focus:ring-target/30;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-ink-muted;
+  }
+}
+
+@keyframes pet-bounce {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-10px); }
+}
+.pet-bounce {
+  animation: pet-bounce 0.5s ease-out;
+}
+@keyframes pet-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.1); }
+}
+.pet-eyes {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: pet-blink 4s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pet-bounce, .pet-eyes { animation: none; }
+}

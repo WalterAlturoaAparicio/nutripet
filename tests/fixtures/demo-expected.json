@@ -1,0 +1,24 @@
+{
+  "today": "2026-11-08",
+  "start": "2026-09-10",
+  "streak": {
+    "current": 24,
+    "longest": 24,
+    "totalRecordedDays": 52,
+    "totalCompletedDays": 49,
+    "freezesAvailable": 2
+  },
+  "frozenDates": ["2026-09-24", "2026-09-25", "2026-10-08"],
+  "monthCompletionPct": { "2026-11": 100, "2026-10": 77 },
+  "states": {
+    "2026-09-24": "none",
+    "2026-09-25": "activity_only",
+    "2026-09-26": "full_completed",
+    "2026-09-30": "food_partial",
+    "2026-10-01": "rest_completed",
+    "2026-10-15": "food_completed",
+    "2026-11-08": "food_partial"
+  },
+  "notRewardEligible": ["2026-10-15", "2026-10-24"],
+  "rewardEligible": ["2026-09-10", "2026-10-25", "2026-11-07"]
+}

@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+
+# next.js / build
+.next/
+out/
+build/
+dist/
+next-env.d.ts
+*.tsbuildinfo
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js
+
+# tests
+coverage/
+playwright-report/
+test-results/
+
+# data
+data/*.db
+data/*.db-*
+data/backups/
+data/import-reports/*
+!data/import-reports/.gitkeep
+data/sources/usda/*.zip
+data/sources/usda/*.json
+
+# env
+.env
+.env*.local
+.env.production
+
+# logs and OS files
+*.log
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
