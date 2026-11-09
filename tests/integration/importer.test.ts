@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, ne } from 'drizzle-orm';
 import { useFreshDb } from './helpers/db';
 import { runImport } from '../../scripts/importers/pipeline';
 import { normalizeOffProduct } from '../../scripts/importers/off';
@@ -12,6 +12,10 @@ import { db } from '@/server/db/client';
 import { food, foodAlias, foodVersion, importRun } from '@/server/db/schema';
 
 useFreshDb();
+
+// Built-in reference foods (e.g. water) are seeded with every database; these tests look at imported foods only.
+const imported = ne(food.dataSourceId, 'reference');
+const importedVersions = ne(foodVersion.dataSourceId, 'reference');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'np-import-'));
 function fixtureFile(name: string, content: string): string {
@@ -56,14 +60,14 @@ describe('import pipeline', () => {
 
     const r2 = runImport('usda_fdc', input([rice]), { reportDir: tmp });
     expect(r2).toMatchObject({ created: 0, updated: 0, unchanged: 1 });
-    expect(db().select().from(foodVersion).all()).toHaveLength(1);
+    expect(db().select().from(foodVersion).where(importedVersions).all()).toHaveLength(1);
   });
 
   it('a nutrient change creates a new version and moves current_version_id', () => {
     runImport('usda_fdc', input([rice]), { reportDir: null });
     const r = runImport('usda_fdc', input([{ ...rice, kcal: 135 }]), { reportDir: null });
     expect(r).toMatchObject({ created: 0, updated: 1 });
-    const f = db().select().from(food).get()!;
+    const f = db().select().from(food).where(imported).get()!;
     const versions = db().select().from(foodVersion).where(eq(foodVersion.foodId, f.id)).all();
     expect(versions.map((v) => v.versionNo).sort()).toEqual([1, 2]);
     expect(versions.find((v) => v.id === f.currentVersionId)!.kcal).toBe(135);
@@ -76,8 +80,8 @@ describe('import pipeline', () => {
       reportDir: null,
     });
     expect(r.updated).toBe(1);
-    expect(db().select().from(foodVersion).all()).toHaveLength(1);
-    expect(db().select().from(foodAlias).all().map((a) => a.alias)).toEqual(['arroz cocido']);
+    expect(db().select().from(foodVersion).where(importedVersions).all()).toHaveLength(1);
+    expect(db().select({ alias: foodAlias.alias }).from(foodAlias).innerJoin(food, eq(food.id, foodAlias.foodId)).where(imported).all().map((a) => a.alias)).toEqual(['arroz cocido']);
   });
 
   it('records the import run with a checksum and writes a report', () => {
@@ -93,14 +97,14 @@ describe('import pipeline', () => {
     const dry = runImport('usda_fdc', input([rice, bad]), { dryRun: true, reportDir: null });
     expect(dry).toMatchObject({ created: 1, skipped: 1 });
     expect(dry.rejected[0]!.errors).toContain('negative kcal');
-    expect(db().select().from(food).all()).toHaveLength(0);
+    expect(db().select().from(food).where(imported).all()).toHaveLength(0);
     expect(db().select().from(importRun).all()).toHaveLength(0);
   });
 
   it('a fixture adapter result imports through the same pipeline (extensibility)', () => {
     const custom: AdapterResult = { ...input([{ ...rice, sourceFoodId: 'X-1' }]), sourceVersion: 'any-source v1' };
     expect(runImport('tcac', custom, { reportDir: null }).created).toBe(1);
-    expect(db().select().from(food).get()!.dataSourceId).toBe('tcac');
+    expect(db().select().from(food).where(imported).get()!.dataSourceId).toBe('tcac');
   });
 });
 
@@ -129,7 +133,7 @@ describe('source adapters', () => {
   it('USDA: FNDDS rows land under usda_fndds', () => {
     const r = runImport('usda_fndds', input([{ ...rice, sourceFoodId: '2708408' }]), { reportDir: null });
     expect(r.created).toBe(1);
-    expect(db().select().from(food).get()!.dataSourceId).toBe('usda_fndds');
+    expect(db().select().from(food).where(imported).get()!.dataSourceId).toBe('usda_fndds');
   });
 
   it('OFF: keeps the published name and brand, packaged state, sodium g→mg, ml basis for liquids', () => {

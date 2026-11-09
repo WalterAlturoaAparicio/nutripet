@@ -32,6 +32,14 @@ export const DATA_SOURCES = [
     url: 'https://world.openfoodfacts.org/',
   },
   {
+    id: 'reference',
+    name: 'Valores de referencia de NutriPet',
+    license: 'Datos de referencia (sin restricciones)',
+    attributionText:
+      'Registros básicos mantenidos por NutriPet con valores físicamente establecidos (p. ej., el agua no aporta energía ni macronutrientes).',
+    url: null,
+  },
+  {
     id: 'user',
     name: 'Alimento creado por el usuario',
     license: 'Datos del usuario',

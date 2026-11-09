@@ -19,6 +19,8 @@ export function QuantitySheet({
   initialUnit,
   confirmLabel,
   busy,
+  inPreparation,
+  onPrepare,
   onConfirm,
 }: {
   food: FoodSummary;
@@ -27,6 +29,10 @@ export function QuantitySheet({
   initialUnit?: 'g' | 'ml';
   confirmLabel?: string;
   busy?: boolean;
+  /** True when the food is being added as an ingredient of a preparation. */
+  inPreparation?: boolean;
+  /** Offered for powders/concentrates logged directly: build a preparation with its liquid instead. */
+  onPrepare?: (food: FoodSummary) => void;
   onConfirm: (v: { foodId: string; quantity: number; unit: 'g' | 'ml'; food: FoodSummary }) => void;
 }) {
   const [food, setFood] = useState(initialFood);
@@ -71,6 +77,18 @@ export function QuantitySheet({
           {food.brand && <span className="text-xs text-ink-muted">{food.brand}</span>}
         </p>
       </div>
+      {!inPreparation && food.productForm && food.productForm !== 'as_sold' && (
+        <div role="note" className="mb-3 rounded-xl bg-expenditure-soft p-3 text-sm">
+          <p>
+            <strong>{t(`foods.productForms.${food.productForm}`)}:</strong> {t('recipes.dryWarning')}
+          </p>
+          {onPrepare && (
+            <button type="button" className="mt-2 font-semibold underline" onClick={() => onPrepare(food)}>
+              {t('recipes.prepareIt')}
+            </button>
+          )}
+        </div>
+      )}
       {allVariants.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-2" role="radiogroup" aria-label={t('foods.preparation')}>
           {allVariants.map((v) => (

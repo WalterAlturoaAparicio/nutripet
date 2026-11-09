@@ -17,6 +17,8 @@ export interface FoodSummary {
   category: FoodCategory;
   preparationState: FoodRow['preparationState'];
   brand: string | null;
+  /** 'dry_mix' / 'concentrate': values describe the product before preparation (FR-048). */
+  productForm: FoodRow['productForm'];
   basis: 'g' | 'ml';
   kcalPer100: number;
   proteinPer100: number;
@@ -78,6 +80,7 @@ interface SearchRow {
   name_en: string | null;
   category: FoodCategory;
   preparation_state: FoodRow['preparationState'];
+  product_form: FoodRow['productForm'];
   brand: string | null;
   data_source_id: string;
   owner_profile_id: string | null;
@@ -125,6 +128,7 @@ function toSummary(r: SearchRow): FoodSummary {
     category: r.category,
     preparationState: r.preparation_state,
     brand: r.brand,
+    productForm: r.product_form,
     basis: o ? r.eff_basis! : r.basis,
     kcalPer100: o ? r.eff_kcal! : r.kcal,
     proteinPer100: o ? r.eff_protein! : r.protein_g,
@@ -150,7 +154,7 @@ export function searchFoods(profileId: string, params: SearchParams): { items: F
   if (params.state) where.push('f.preparation_state = @state');
   if (params.branded !== undefined) where.push(params.branded ? 'f.brand IS NOT NULL' : 'f.brand IS NULL');
   const sqlText = `
-    SELECT f.id, f.name_es, f.name_en, f.category, f.preparation_state, f.brand, f.data_source_id, f.owner_profile_id,
+    SELECT f.id, f.name_es, f.name_en, f.category, f.preparation_state, f.product_form, f.brand, f.data_source_id, f.owner_profile_id,
       v.basis, v.kcal, v.protein_g, v.carbs_g, v.fat_g, v.density_g_per_ml, ${select},
       ${match ? 'CASE WHEN f.id IN (SELECT food_id FROM food_search WHERE food_search MATCH @exact) THEN 0 ELSE 1 END' : '0'} AS prefix_only,
       ${match ? 'CASE WHEN f.id IN (SELECT food_id FROM food_search WHERE food_search MATCH @starts) THEN 0 ELSE 1 END' : '0'} AS not_starting
@@ -210,6 +214,8 @@ export function getFood(profileId: string, foodId: string) {
     category: f.category,
     preparationState: f.preparationState,
     brand: f.brand,
+    productForm: f.productForm,
+    preparationInstructions: f.preparationInstructions,
     isCustom: f.ownerProfileId !== null,
     isFavorite,
     hasOverride: isOverride,

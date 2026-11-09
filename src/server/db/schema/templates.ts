@@ -1,6 +1,8 @@
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { profile } from './profiles';
 import { food } from './foods';
+import { recipe } from './recipes';
+import { PORTION_MODES } from './journal';
 
 export const mealTemplate = sqliteTable(
   'meal_template',
@@ -15,14 +17,16 @@ export const mealTemplate = sqliteTable(
   (t) => [index('meal_template_profile_idx').on(t.profileId)],
 );
 
+/** A food (food_id + quantity/unit) or a recipe portion (recipe_id + portion_mode [+ servings or quantity/unit]). */
 export const mealTemplateItem = sqliteTable('meal_template_item', {
   templateId: text('template_id')
     .notNull()
     .references(() => mealTemplate.id, { onDelete: 'cascade' }),
-  foodId: text('food_id')
-    .notNull()
-    .references(() => food.id),
-  quantity: real('quantity').notNull(),
-  unit: text('unit', { enum: ['g', 'ml'] }).notNull(),
+  foodId: text('food_id').references(() => food.id),
+  recipeId: text('recipe_id').references(() => recipe.id),
+  portionMode: text('portion_mode', { enum: PORTION_MODES }),
+  portionServings: real('portion_servings'),
+  quantity: real('quantity'),
+  unit: text('unit', { enum: ['g', 'ml'] }),
   position: integer('position').notNull(),
 });

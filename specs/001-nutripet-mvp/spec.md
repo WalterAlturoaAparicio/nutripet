@@ -35,6 +35,20 @@ history; sections referenced below as §N)
 - U3: Data preferences = weight unit, height unit, food quantity unit, time zone; no export in MVP (FR-007).
 - U4: Preparation state belongs to the food variant (FR-031).
 
+### Session 2026-11-09 (multi-food meals and preparations)
+
+- M1: A meal is registered as one unit with any number of foods; the user adds, edits and removes
+  rows, sees live totals and saves the whole meal at once; an existing meal can be edited the same
+  way (FR-035a). Templates may contain preparation portions (FR-035b).
+- M2: Preparations (recipes) are profile-owned, built from catalog/custom ingredients, and keep
+  their ingredient composition and calculation provenance; they are not catalog foods (FR-038).
+- M3: A preparation's nutrients are the sum of each ingredient's own contribution; water adds no
+  energy; per-100 g/ml values of a powder never describe the prepared beverage (FR-039, FR-048).
+- M4: The final yield is entered by the user and never inferred from the ingredient sum; amounts
+  consumed are proportional only for homogeneous preparations (FR-045).
+- M5: Every recipe save creates an immutable version; meal entries reference the version they
+  used (FR-046).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Create and configure an independent profile (Priority: P1)
@@ -306,6 +320,46 @@ days with logged data, and labeled as estimates.
 
 ---
 
+### User Story 9 - Log a whole multi-food meal and homemade preparations (Priority: P2)
+
+A person opens "add meal", picks breakfast and adds eggs 100 g, bread 60 g, cheese 30 g and a
+chocolate drink without leaving the screen: each row shows its quantity, unit, kcal and macros, the
+meal total updates as rows are added, edited or removed, and one "save meal" stores everything.
+The chocolate drink is a saved preparation (chocolate powder 25 g + milk 200 ml); the person picks
+how much of it they drank. A lemonade made from powder (400 kcal per 100 g of powder) with 20 g of
+powder and 300 ml of water is recorded as 80 kcal in total, never as 400 kcal per 100 ml.
+
+**Why this priority**: real meals contain several foods and many drinks are prepared from
+concentrated products; logging them one by one is slow, and calculating them as the dry product is
+wrong by a large factor.
+
+**Independent Test**: build breakfast with three foods and one preparation portion in a single
+save; verify per-row and meal totals; create "Limonada" (20 g powder + 300 ml water, final volume
+320 ml) → 80 kcal total, 25 kcal/100 ml; log 200 ml → 50 kcal; edit the recipe and the catalog
+powder afterwards and verify the logged entry still shows 50 kcal (quickstart 15, 16).
+
+**Acceptance Scenarios**:
+
+1. **Given** the meal builder, **When** the person adds several foods, **Then** the previous rows
+   stay visible while searching the next one, and the meal total is the sum of the rows.
+2. **Given** a built meal, **When** a row's quantity is edited or a row is removed, **Then** the
+   row and the meal totals update immediately, and nothing is stored until "save meal".
+3. **Given** a saved meal, **When** the person edits it as a whole (change a quantity, remove one
+   food, add another) and saves, **Then** kept entries keep their original snapshot values per 100
+   and only their quantity changes.
+4. **Given** a powder with 400 kcal/100 g, **When** a preparation uses 20 g of it and 300 ml of
+   water, **Then** the preparation shows 80 kcal in total; with 300 ml of milk instead, the milk's
+   contribution is added.
+5. **Given** a preparation with an entered final yield of 500 ml and 400 kcal, **When** the person
+   logs 200 ml, **Then** 160 kcal are logged; without an entered yield, only "whole" or "servings"
+   portions are offered.
+6. **Given** a non-homogeneous preparation, **When** the person logs it, **Then** they can log it
+   whole, by equal servings, or as the ingredients actually eaten, but not by proportional amount.
+7. **Given** a meal that used version 1 of a recipe, **When** the recipe or an ingredient's catalog
+   values change, **Then** that meal keeps its values; editing its portion still uses version 1.
+
+---
+
 ### Edge Cases
 
 - A food lacks fiber, sugar, or sodium data: these are shown as "not available", never as 0, and
@@ -338,6 +392,16 @@ days with logged data, and labeled as estimates.
   accent-insensitive and case-insensitive.
 - Import run twice or a source updates a food: imports are idempotent; changed foods get a new
   version, without altering historical entries.
+- A powdered or concentrated product is logged directly: the values shown are those of the dry
+  product, labeled as such, with a shortcut to build a preparation with its liquid (FR-048).
+- A preparation's final volume differs from the sum of its ingredients (evaporation, absorption,
+  mixing): per-100 values use the yield the user entered; without it they are not shown (FR-045).
+- A consumed amount larger than the preparation, a zero/negative quantity, servings on a recipe
+  without servings, or an amount on a recipe without yield: rejected with a clear message.
+- A saved preparation is deleted: it disappears from the lists; past meals keep their values and
+  stay readable through the version they used (FR-046).
+- Water and other ingredients with established zero values contribute 0; no liquid is assumed to
+  be zero without a record saying so (FR-047).
 
 ## Requirements *(mandatory)*
 
@@ -472,10 +536,53 @@ days with logged data, and labeled as estimates.
   add, edit, or delete.
 - **FR-035**: Users MUST be able to edit and delete entries, duplicate a previous meal to another
   date/occasion, save a meal as a template, and apply a template in one action.
+- **FR-035a**: Users MUST be able to build a meal with any number of items (foods with quantity in
+  g or ml, and portions of saved preparations) in one screen: search and add without losing the
+  rows already added, see per-row kcal/protein/carbohydrates/fat, edit or remove rows, see live
+  meal totals, and save the whole meal in one action. An existing meal MUST be editable the same
+  way in one save: kept entries keep their snapshot, new items are snapshotted at save time,
+  omitted entries are removed. Quantities MUST be > 0; an invalid item rejects the whole save.
+- **FR-035b**: Meal templates MUST store the full combination of items (foods with quantities and
+  preparation portions) and can be loaded into the meal builder for review before saving, or
+  applied in one action.
 - **FR-036**: Users MUST be able to log entries without completing or "closing" the day; partial
   days are always valid.
 - **FR-037**: Calculated values MUST be stored with full precision and rounded only for display
   (kcal to whole numbers, grams to one decimal).
+
+#### Preparations (recipes)
+
+- **FR-038**: Users MUST be able to create, edit, reuse, delete and create variations of their own
+  preparations, each with a name, ingredients (catalog or custom foods with quantity and g/ml
+  unit), optional notes/instructions, optional number of servings, optional actual final yield
+  (g or ml) and a homogeneous flag. Preparations belong to one profile and keep their ingredient
+  composition; they are not catalog foods. The builder MUST be reachable from the meal builder.
+- **FR-039**: A preparation's nutrients MUST be calculated in the domain layer as the sum of each
+  ingredient's contribution, `(quantity in the ingredient's basis / 100) × value per 100` (FR-032),
+  using each ingredient's own reference. Adding water MUST NOT change the total. Ingredients with
+  missing or invalid references MUST be rejected, never treated as zero. The UI MUST use the same
+  domain functions and show the complete preparation, per serving (when servings are set) and per
+  100 g/ml of the final preparation (only when a yield is entered).
+- **FR-045**: A consumed portion MUST be one of: the whole preparation; N of its servings
+  (`N / servings`); or an amount of its actual final yield (`amount / yield`), allowed only for
+  homogeneous preparations and in the yield's unit. A portion MUST NOT exceed the whole
+  preparation. The final yield MUST NOT be inferred from the ingredient sum. For non-homogeneous
+  preparations, users MUST be able to log the ingredients actually eaten instead.
+- **FR-046**: Every save of a preparation MUST create an immutable version holding its ingredient
+  snapshots (food version and values per 100 used) and its calculated totals. Meal entries MUST
+  reference the version used; editing a logged portion recomputes from that version; editing the
+  recipe or the catalog MUST NOT change logged meals.
+- **FR-047**: Water MUST be available as an ingredient, with zero energy and macronutrients, from a
+  documented reference record. Other zero or negligible ingredients are supported when a record
+  with those values exists; liquids MUST NOT be assumed to be zero.
+- **FR-048**: Foods MUST record the product form their values refer to (ready to consume, dry mix
+  / powder, or concentrate) plus optional preparation instructions. Dry and prepared variants are
+  separate records with their own source; estimated prepared values MUST NOT overwrite the original
+  product values; reference records are identified by (source, source id) so re-seeding never
+  duplicates them.
+- **FR-049**: A preparation portion MUST be loggable directly in a meal, and the user MUST always
+  see which ingredients and quantities it contains, the kcal of the complete preparation and the
+  kcal of the consumed portion.
 
 #### Activity
 
@@ -600,15 +707,23 @@ days with logged data, and labeled as estimates.
 - **Enrolled Device / Pairing Code**: Devices allowed to see the profile selector (FR-008).
 - **Weight Record**: Date, weight (kg), optional note; belongs to a profile.
 - **Food**: Catalog item with nutrition per 100 g/ml, names and aliases, category, preparation
-  state, brand, source, source identifier, version; may be global (imported) or profile-owned
-  (custom).
+  state, product form (ready / dry mix / concentrate) and preparation instructions, brand, source,
+  source identifier, version; may be global (imported or reference) or profile-owned (custom).
 - **Food Override**: A profile's correction to a catalog food's values, with origin marked.
 - **Data Source / Import Run**: Identity, license/attribution, and versioned import runs that
   produce or update foods.
 - **Meal**: A meal occasion on a date for a profile (breakfast, snacks, lunch, dinner, additional).
-- **Meal Entry**: Food reference, quantity and unit, time, notes, plus a nutrition snapshot with
-  source/version.
-- **Meal Template**: Named reusable list of foods and quantities owned by a profile.
+- **Meal Entry**: Either a food (reference, quantity and unit, nutrition snapshot with
+  source/version) or a preparation portion (recipe version, portion mode, servings or amount,
+  portion factor); time, notes and calculated nutrients.
+- **Meal Template**: Named reusable list of foods with quantities and preparation portions, owned
+  by a profile.
+- **Recipe (Preparation)**: A profile's named preparation; stable identity, current version,
+  hidden flag.
+- **Recipe Version**: Immutable composition of a recipe: servings, actual final yield and unit,
+  homogeneous flag, notes, calculated totals.
+- **Recipe Ingredient**: Food reference, food version, quantity and unit, frozen values per 100 and
+  the calculated contribution.
 - **Favorite / Usage Frequency**: Per-profile food preference and logging frequency.
 - **Activity Type**: Built-in or custom activity with MET values per intensity.
 - **Activity Entry**: Type, date, duration, intensity, notes, estimate source (MET, manual, none),
@@ -642,6 +757,11 @@ days with logged data, and labeled as estimates.
 - **SC-009**: In a usability check, both users can correctly explain what their daily target and
   energy balance mean after viewing the "how is this calculated?" explanation.
 - **SC-010**: All core flows work on a mobile phone screen without horizontal scrolling.
+- **SC-011**: A 4-item meal is saved with one "save meal" action without leaving the meal builder,
+  and the rows already added stay visible while the next one is searched.
+- **SC-012**: 100% of tested preparation cases (powder in water/milk, servings, partial amounts,
+  yield different from the ingredient sum, invalid references) match hand-calculated values, and
+  editing recipes or catalog foods changes 0 historical entries.
 
 ## Assumptions
 

@@ -21,6 +21,39 @@ sumNutrients(list: Nutrients[]) → Nutrients   // null-propagating for fiber/su
 - Sum with one unknown fiber → fiber reported as the sum of known values, with `incomplete:
   ['fiber']`.
 
+## preparations (`src/domain/nutrition/recipe.ts`, FR-039, FR-045)
+
+```text
+ingredientContribution(ingredient: { quantity, unit, basis, densityGPerMl, per100 })
+  → { nutrients, approximate }            // = scaleNutrients; throws NutritionError on invalid input
+computePreparation({ ingredients, servings?, yield?: { quantity, unit } })
+  → { ingredients, totals, incomplete, approximate, perServing | null, per100OfYield | null }
+portionFactor(facts: { totals, servings, yield, homogeneous }, portion) → 0 < f ≤ 1
+portionNutrients(facts, portion) → { nutrients = totals × f, factor }
+portion = { mode: 'whole' } | { mode: 'servings', servings } | { mode: 'amount', quantity, unit }
+```
+- `totals = Σ contribution(ingredient)`; each contribution uses the ingredient's own per-100
+  reference. `perServing = totals / servings`; `per100OfYield = totals × 100 / yield`. The yield
+  is the value the user entered; it is never computed from the ingredients.
+- `whole → 1`; `servings → n / servings` (servings must be defined); `amount → q / yield` (yield
+  must be defined, same unit, homogeneous preparation). `f > 1` → `portion_exceeds_total`.
+- Invalid input throws `NutritionError(code)`: `invalid_reference` (NaN/negative/missing core
+  value), `invalid_quantity` (≤ 0), `no_ingredients`, `invalid_yield`, `invalid_servings`,
+  `servings_unknown`, `yield_unknown`, `unit_mismatch`, `portion_exceeds_total`, `not_homogeneous`.
+
+Reference examples (mandatory, `tests/unit/domain/recipe.test.ts`):
+- Lemonade powder 400 kcal/100 g: 20 g + water 300 ml → **80 kcal** (water 0). With 1000 ml of
+  water → still 80 kcal. 10 g → 40 kcal; 35 g → 140 kcal.
+- Same 20 g + whole milk 300 ml (61 kcal/100 ml) → 80 + 183 = **263 kcal**.
+- Chocolate powder 380 kcal/100 g, 25 g + milk 200 ml → 95 + 122 = 217 kcal; milk 250 ml → 247.5.
+- Oatmeal: oats 50 g (379) + milk 200 ml (61) + banana 80 g (89) → 189.5 + 122 + 71.2 = 382.7 kcal.
+- 400 kcal preparation, yield 500 ml: 200 ml → **160 kcal**; 2 of 4 servings → 200 kcal.
+- Oatmeal with an entered cooked yield of 280 g (ingredients "add up" to ~330): totals unchanged,
+  per 100 g = totals × 100 / 280.
+- Non-homogeneous preparation: `amount` → `not_homogeneous`; `whole` and `servings` allowed.
+- Lemonade 80 kcal: 200 ml glass of a 320 ml yield → 50 kcal; with 800 ml water (820 ml yield) →
+  80 × 200 / 820 ≈ 19.5 kcal (same total, lower concentration).
+
 ## energy
 
 ```text

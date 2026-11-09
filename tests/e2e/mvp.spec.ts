@@ -100,7 +100,8 @@ test('log a weighed food item in under 20 seconds and see totals update', async 
   await page.getByLabel('Buscar alimento').fill('huevo');
   await page.getByRole('button', { name: /Huevo entero, cocido/ }).click();
   await page.getByLabel('Cantidad').fill('100');
-  await page.getByRole('button', { name: /^Agregar ·/ }).click();
+  await page.getByRole('button', { name: /^Agregar a la comida ·/ }).click();
+  await page.getByRole('button', { name: 'Guardar comida' }).click();
   await expect(page.getByLabel('Consumido').getByText('155 kcal', { exact: true })).toBeVisible();
   expect(Date.now() - started).toBeLessThan(20_000);
 });
@@ -124,8 +125,36 @@ test('homemade arepa is a documented gap: create it as a custom food and log 130
   await page.getByLabel('Buscar alimento').fill('arepa casera');
   await page.getByRole('button', { name: /arepa casera/i }).click();
   await page.getByLabel('Cantidad').fill('130');
-  await page.getByRole('button', { name: /^Agregar ·/ }).click();
+  await page.getByRole('button', { name: /^Agregar a la comida ·/ }).click();
+  await page.getByRole('button', { name: 'Guardar comida' }).click();
   await expect(page.getByText('273 kcal').first()).toBeVisible();
+});
+
+test('builds a multi-food meal with a lemonade preparation and saves it at once', async () => {
+  await login(page, 'Bruno', '5678');
+  await page.goto('/diario');
+  await expect(page.getByRole('heading', { name: 'Almuerzo' })).toBeVisible();
+  await page.getByRole('button', { name: '+ Agregar' }).nth(2).click(); // Almuerzo
+  const sheet = page.getByRole('dialog', { name: 'Registrar comida' });
+  await expect(sheet).toBeVisible();
+  await sheet.getByLabel('Buscar alimento').fill('huevo');
+  await sheet.getByRole('button', { name: /Huevo entero, cocido/ }).click();
+  await sheet.getByLabel('Cantidad').fill('50');
+  await sheet.getByRole('button', { name: /^Agregar a la comida ·/ }).click();
+  // The first row stays while the next food is searched and added.
+  await expect(sheet.getByRole('listitem').filter({ hasText: 'Huevo entero, cocido (duro)' })).toBeVisible();
+  await sheet.getByRole('button', { name: 'Nueva preparación' }).click();
+  await sheet.getByLabel('Nombre de la preparación').fill('Bebida de prueba');
+  await sheet.getByRole('button', { name: '+ Agua' }).click();
+  await sheet.getByLabel('Cantidad').fill('300');
+  await sheet.getByRole('button', { name: /^Agregar a la comida ·/ }).click();
+  await expect(sheet.getByLabel('Preparación completa').getByText(/^0 kcal/)).toBeVisible();
+  await sheet.getByRole('button', { name: 'Guardar y usar' }).click();
+  await sheet.getByRole('button', { name: 'Agregar a la comida' }).click();
+  await expect(sheet.getByLabel('Total de la comida')).toBeVisible();
+  await sheet.getByRole('button', { name: 'Guardar comida' }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByText('Bebida de prueba')).toBeVisible();
 });
 
 test('an activity raises the estimated expenditure and balance', async () => {

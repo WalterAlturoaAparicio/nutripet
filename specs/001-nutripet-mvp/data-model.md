@@ -16,7 +16,9 @@ profile 1─┬─* weight_record
           ├─* day_energy_snapshot *─1 profile_settings_version
           ├─* session / pin + recovery attempt state
           ├─* meal ─* meal_entry *─1 food_version *─1 food *─1 data_source
-          ├─* meal_template ─* meal_template_item *─1 food
+          │              meal_entry *─1 recipe_version (kind = recipe)
+          ├─* meal_template ─* meal_template_item *─1 food | recipe
+          ├─* recipe ─* recipe_version ─* recipe_ingredient *─1 food_version
           ├─* food (custom, owner_profile_id)      food ─* food_alias
           ├─* food_override *─1 food               food ─* food_version
           ├─* food_favorite *─1 food               import_run *─1 data_source
@@ -155,6 +157,8 @@ calculations. Deleting the last remaining record is rejected (a weight is requir
 | category | enum | `cereales`, `carnes`, `pescados`, `huevos`, `lacteos`, `leguminosas`, `tuberculos_platanos`, `frutas`, `verduras`, `grasas`, `azucares`, `bebidas`, `preparaciones`, `empacados`, `otros` |
 | preparation_state | enum `raw`/`cooked`/`prepared`/`packaged` | belongs to the variant: "Arroz blanco, crudo" and "Arroz blanco, cocido" are two foods (U4) |
 | brand | text null | branded products |
+| product_form | enum `as_sold`/`dry_mix`/`concentrate` | default `as_sold`. Values of `dry_mix`/`concentrate` describe the product **before** preparation (e.g. lemonade powder per 100 g of powder), never the prepared drink (FR-048) |
+| preparation_instructions | text null | ≤ 300, e.g. "1 sobre (20 g) en 1 litro de agua" |
 | current_version_id | FK food_version | |
 | hidden_at | timestamp null | soft delete; hidden from search |
 
@@ -211,26 +215,76 @@ Unique (profile_id, local_date, occasion) except `extra`, which allows several.
 | Field | Type | Rules |
 |---|---|---|
 | id, profile_id, meal_id | | meal.profile_id must equal profile_id |
-| food_id / food_version_id | FK | version used at logging time; the variant fixes the preparation state |
-| snap_preparation_state | enum | copy of the food's preparation state at logging time |
-| quantity | real | > 0 and ≤ 5000; > 2000 requires a confirm flag |
-| unit | enum `g`/`ml` | |
+| kind | enum `food`/`recipe` | default `food` (FR-035a, FR-045) |
+| food_id / food_version_id | FK null | set for `food`: version used at logging time; the variant fixes the preparation state |
+| recipe_id / recipe_version_id | FK null | set for `recipe`: the exact recipe version used (FR-046) |
+| portion_mode | enum `whole`/`servings`/`amount` null | `recipe` only |
+| portion_servings | real null | `servings` mode |
+| portion_factor | real null | fraction of the complete preparation consumed, 0 < f ≤ 1 |
+| snap_preparation_state | enum | copy of the food's preparation state at logging time (`prepared` for recipes) |
+| snap_product_form | enum | copy of the food's product form |
+| quantity | real null | > 0 and ≤ 5000; > 2000 requires a confirm flag. Always set for `food`; for `recipe` = consumed amount when known (amount mode, or factor × yield) |
+| unit | enum `g`/`ml` null | |
 | approximate | bool | true if a g↔ml conversion assumed 1 g/ml (R9) |
 | eaten_at | timestamp | default now |
 | note | text null | ≤ 280 |
-| snap_basis, snap_kcal_per100, snap_protein_per100, … | real | copy of the version values used |
+| snap_basis, snap_kcal_per100, snap_protein_per100, … | real null | `food`: copy of the version values used (always set). `recipe`: values per 100 of the final yield, null when no yield was entered |
 | kcal, protein_g, carbs_g, fat_g | real | computed amounts at full precision |
 | fiber_g, sugar_g, sodium_mg | real null | null if the source value is unknown |
 
-**Snapshot rule** (FR-033): the snapshot fields are written at creation. Editing `quantity`
+**Snapshot rule** (FR-033, FR-046): the snapshot fields are written at creation. Editing `quantity`
 recomputes the amounts from the **snapshot**, not from the current catalog. Changing the food
-re-snapshots from the newly chosen food's current version.
+re-snapshots from the newly chosen food's current version. Editing a recipe entry's portion
+recomputes from its own `recipe_version` (never the recipe's current version):
+`nutrients = recipe_version totals × portion_factor`.
+
+Migration `0009_recipes` rebuilds `meal_entry` and `meal_template_item`; existing rows are copied
+with `kind = 'food'` and identical values (covered by `tests/integration/migration-recipes.test.ts`).
 
 ### meal_template / meal_template_item
 `meal_template(id, profile_id, name, created_at)`;
-`meal_template_item(template_id, food_id, quantity, unit, position)`. Applying a template creates
-normal `meal_entry` rows snapshotted from each food's **current** version (or the profile's
-override).
+`meal_template_item(template_id, food_id null, recipe_id null, portion_mode null,
+portion_servings null, quantity null, unit null, position)`: either a food with quantity/unit or a
+recipe portion (FR-035b). Templates store combinations, not nutrient values. Applying a template
+creates normal `meal_entry` rows snapshotted from each food's **current** version (or the
+profile's override) and each recipe's **current** version.
+
+---
+
+## Preparations (recipes)
+
+### recipe (stable identity)
+| Field | Type | Rules |
+|---|---|---|
+| id, profile_id | | owned by one profile; another profile's recipe → 404 |
+| name | text | 1–60 |
+| current_version_id | FK recipe_version | |
+| hidden_at | timestamp null | soft delete; versions stay readable for history |
+
+### recipe_version (immutable, FR-046)
+| Field | Type | Rules |
+|---|---|---|
+| id, recipe_id, version_no | | unique (recipe_id, version_no); a new row on every save |
+| notes | text null | ≤ 500, instructions |
+| servings | real null | > 0, ≤ 100 |
+| yield_quantity / yield_unit | real null / `g`/`ml` null | both or neither; the actual final mass/volume entered by the user, never the ingredient sum (FR-045) |
+| homogeneous | bool | required for portions by amount |
+| approximate | bool | an ingredient needed g↔ml without density |
+| kcal, protein_g, carbs_g, fat_g, fiber_g?, sugar_g?, sodium_mg? | real | totals of the complete preparation = Σ ingredient contributions (FR-039) |
+
+### recipe_ingredient
+| Field | Type | Rules |
+|---|---|---|
+| recipe_version_id, position | | |
+| food_id / food_version_id | FK | effective version (incl. the profile's override) at save time |
+| quantity, unit | real `g`/`ml` | > 0, ≤ 5000 |
+| snap_name, snap_brand, snap_preparation_state, snap_product_form, snap_data_source_id, snap_source_version | | copy of the food at save time |
+| snap_basis, snap_density_g_per_ml, snap_*_per100 | | copy of the values per 100 used |
+| kcal … sodium_mg, approximate | | the ingredient's contribution |
+
+Reference records: data source `reference` holds physically established values maintained by the
+app (seeded idempotently by (source, source_food_id)). Currently one record, **Agua** (basis ml,
+density 1, 0 kcal/protein/carbs/fat/fiber/sugar, sodium unknown) (FR-047).
 
 ---
 
@@ -351,7 +405,11 @@ removed.
 
 ## Validation summary (server-side, Zod)
 
-All bounds above are enforced in shared Zod schemas used by every route and action. Future
+All bounds above are enforced in shared Zod schemas used by every route and action
+(`src/server/validation/journal.ts`, `src/server/validation/recipes.ts`). Domain calculation
+errors (`NutritionError`: invalid reference, zero quantity, unknown yield/servings, unit mismatch,
+portion larger than the preparation, amount on a non-homogeneous preparation) are returned as
+`VALIDATION` with `reason` = the error code. Future
 `local_date` values are rejected for meals, entries, activities and weights. `profile_id` always
 comes from the session. A record whose `profile_id` differs from the session's returns 404 (not
 403), so the API does not reveal that the record exists.

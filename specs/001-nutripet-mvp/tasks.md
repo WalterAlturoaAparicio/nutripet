@@ -16,10 +16,14 @@ were resolved. Original task IDs T001–T126 are kept (some descriptions extende
 T127–T145 are placed inside the phase where they run, so **execution order follows the position
 in this list, not the numeric ID**.
 
+**Revision 3 (2026-11-09)**: User Story 9 (multi-food meals and preparations, spec FR-035a,
+FR-035b, FR-038, FR-039, FR-045–FR-049, SC-011, SC-012) adds Phase 12 with tasks T146–T165.
+Existing tasks are unchanged; T060/T061/T064/T065 are extended by T153–T160.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: can run in parallel (different files, no dependency on an incomplete task)
-- **[Story]**: the user story the task belongs to (US1…US8)
+- **[Story]**: the user story the task belongs to (US1…US9)
 - Paths are relative to the repository root (single Next.js project, see plan.md
   "Project Structure")
 
@@ -372,6 +376,61 @@ as "basado en N de M días", using the dashboard's sign convention and each day'
 
 ---
 
+## Phase 12: User Story 9 — Multi-food meals and homemade preparations (Priority: P2)
+
+**Goal**: register a whole meal with many foods in one save, edit it as a whole, and build
+preparations (beverages, dishes) whose nutrients are the sum of their ingredients, logged whole,
+by servings or by an amount of the real final yield, with immutable history.
+
+**Independent Test**: quickstart 15 and 16; `tests/unit/domain/recipe.test.ts`,
+`tests/integration/meals-recipes.test.ts`, `tests/integration/migration-recipes.test.ts`.
+
+### Tests for User Story 9 ⚠️ (write first, must fail)
+
+- [X] T146 [P] [US9] Unit tests in `tests/unit/domain/recipe.test.ts` for every preparation example in contracts/domain-calculations.md § preparations: powder in water and in milk, different powder and liquid quantities, zero-calorie water, a nonzero liquid, three ingredients, whole/partial/servings portions, yield different from the ingredient sum, no per-100 without yield, invalid/missing references and quantities (with the failing ingredient index), homogeneous vs non-homogeneous, same total but lower concentration with more water; property: portions of the yield add up to the total (FR-039, FR-045, SC-012)
+- [X] T147 [P] [US9] Integration tests in `tests/integration/meals-recipes.test.ts`: batch-save a 3-food meal (row/meal/day totals, remaining kcal, energy balance, calendar), atomic rejection of zero/negative/unknown items, `PUT /meals/{id}` editing (change quantity, remove, add; kept entry keeps its snapshot after a catalog update; foreign entry → 404; other profile → 404), multi-food template create/apply; water searchable once with 0 values; lemonade 80 kcal / 200 ml → 50 kcal; whole vs servings with milk; amount without yield → `yield_unknown`; non-homogeneous → `not_homogeneous`; recipe validation; recipe privacy; recipe update does not change logged entries and a portion edit uses the logged version; catalog update changes neither the recipe version nor the entry; templates/duplicates with recipe portions (FR-035a, FR-035b, FR-046, FR-047)
+- [X] T148 [P] [US9] Migration test in `tests/integration/migration-recipes.test.ts`: a database at 0008 with a meal entry and a template item migrates to 0009 with identical values, `kind = 'food'`, and no foreign-key violations (FR-033)
+
+### Implementation for User Story 9
+
+- [X] T149 [US9] Implement `src/domain/nutrition/recipe.ts` (`ingredientContribution`, `computePreparation`, `portionFactor`, `portionNutrients`, `scaleBy`, `isValidReference`, `NutritionError`) and split the existing functions into `src/domain/nutrition/scale.ts` (re-exported from `index.ts`) until T146 passes (FR-039, FR-045)
+- [X] T150 [US9] Schema in `src/server/db/schema/recipes.ts` (`recipe`, immutable `recipe_version`, `recipe_ingredient` with snapshot columns), recipe-aware `meal_entry` (`kind`, nullable food refs, `recipe_id`, `recipe_version_id`, `portion_mode`, `portion_servings`, `portion_factor`, `snap_product_form`, nullable quantity/unit and per-100 snapshot) and `meal_template_item` (food or recipe portion), `food.product_form` + `preparation_instructions`; generate `src/server/db/migrations/0009_recipes.sql` and hand-fix its data copy so existing rows keep their values (T148) (FR-038, FR-046, FR-048)
+- [X] T151 [P] [US9] Add the `reference` data source and the idempotent water seeder `src/server/db/seed/reference-foods.ts` (Agua: ml basis, density 1, zero energy/macros/fiber/sugar, sodium unknown); scope `tests/integration/importer.test.ts` to imported sources (FR-047, FR-048)
+- [X] T152 [P] [US9] Zod schemas: `portionSchema`, `mealItemSchema` (food or recipe portion), `updateMealSchema`, `portion` on `updateEntrySchema`, recipe items in batch/templates in `src/server/validation/journal.ts`; `recipeSchema` (yield quantity and unit together) in `src/server/validation/recipes.ts`; `productForm`/`preparationInstructions` in `src/server/validation/foods.ts` (FR-035a, FR-038, FR-083)
+- [X] T153 [US9] Recipes module `src/server/modules/recipes/service.ts` (create = version 1, update = new version re-snapshotting ingredients from their effective versions, soft delete, get current or a given version incl. hidden recipes, list; domain errors → `VALIDATION` with `reason`) and routes `src/app/api/v1/recipes/route.ts`, `src/app/api/v1/recipes/[id]/route.ts` (FR-038, FR-046)
+- [X] T154 [US9] Extend `src/server/modules/journal/service.ts`: food or recipe items in `addEntry`/`addBatch` with a full precheck before writing; recipe entries = version totals × portion factor with per-100-of-yield snapshot; `recompute` from the entry's own snapshot or recipe version; `updateMeal` (keep/add/remove in one transaction); recipe portions in `mealItems`/`duplicateMeal`; `kind`, `productForm`, `recipe` in `EntryView`; route `src/app/api/v1/meals/[mealId]/route.ts` (PUT) (FR-035a, FR-045, FR-046)
+- [X] T155 [US9] Extend templates in `src/server/modules/journal/templates.ts` to store and apply recipe portions; add `GET /templates/{id}` in `src/app/api/v1/templates/[id]/route.ts`; exclude recipe entries from frequent foods in `src/server/modules/foods/custom.ts` (FR-035b)
+- [X] T156 [US9] Expose `productForm` and `preparationInstructions` in `src/server/modules/foods/service.ts` (`FoodSummary`, search SQL, `getFood`) and `custom.ts` (FR-048)
+- [X] T157 [US9] Client draft model `src/ui/journal/draft.ts` (food and recipe rows, row nutrients and meal totals through the domain functions only, API item mapping, entry label) and UI types in `src/ui/types.ts` (FR-035a, FR-039)
+- [X] T158 [US9] Meal builder in `src/ui/journal/AddFoodFlow.tsx`: occasion, rows with name/qty/unit/kcal/P/C/F and edit/remove, inline search with quick-add and saved preparations, live meal total, single save (batch or `PUT /meals/{id}`), large-quantity confirmation, load template into the draft, "also save as template", discard confirmation (FR-035a, FR-035b, SC-011)
+- [X] T159 [US9] Recipe builder `src/ui/recipes/RecipeBuilder.tsx` (ingredients via search + QuantitySheet, "+ Agua", servings, final yield with unit and help text, homogeneous flag, notes, live total/per serving/per 100 of yield, save, edit = new version, variation, delete) and portion picker `src/ui/recipes/PortionPicker.tsx` (whole/servings/amount only when allowed, consumed vs complete kcal, "register the ingredients I ate") (FR-038, FR-045, FR-049)
+- [X] T160 [US9] Journal screen `src/app/(app)/diario/page.tsx`: recipe entries show their portion and open the portion editor against their logged version; meal actions "Editar comida completa"; `src/ui/calendar/DayDetail.tsx` portion labels (FR-046, FR-049)
+- [X] T161 [P] [US9] Dry-mix/concentrate warning with "Preparar con líquido" in `src/ui/journal/QuantitySheet.tsx`, product form + instructions on `src/app/(app)/alimentos/nuevo/page.tsx` and the food detail page (FR-048)
+- [X] T162 [P] [US9] Spanish strings for the builder, preparations, portions and product forms in `src/i18n/es.ts`
+- [X] T163 [P] [US9] E2E: update the breakfast and arepa flows for the builder and add "multi-food meal with a preparation" in `tests/e2e/mvp.spec.ts` (SC-011)
+- [X] T164 [P] [US9] Documentation: spec (US9, FR-035a/b, FR-038/039/045–049, SC-011/012, entities, edge cases), data-model, http-api, domain-calculations, plan, quickstart 15–16, `docs/calculations.md` § Preparations, `docs/data-sources.md` § Reference records
+- [X] T165 [US9] Validation: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`; quickstart 4 (single-food path still works), dashboard totals and energy balance unchanged in meaning, historical entries unchanged
+
+### Requirement traceability (US9)
+
+| Requirement | Tasks | Tests |
+|---|---|---|
+| FR-035a multi-item meal builder, whole-meal save and edit | T152, T154, T157, T158, T160 | T147, T163 |
+| FR-035b templates with all items | T150, T155, T158 | T147 |
+| FR-038 preparations: create/edit/reuse/variations/delete | T150, T153, T159 | T147 |
+| FR-039 ingredient-based calculation in the domain | T149, T153, T157 | T146 |
+| FR-045 portions, yield, homogeneous rule | T149, T152, T154, T159 | T146, T147 |
+| FR-046 immutable recipe versions, historical integrity | T150, T153, T154, T160 | T147, T148 |
+| FR-047 water / zero-value reference records | T151, T159 | T146, T147 |
+| FR-048 product form, separate dry/prepared records, no overwrite or duplicates | T150, T151, T156, T161 | T147 |
+| FR-049 log preparation portions; always show composition and consumed vs total kcal | T154, T159, T160 | T147, T163 |
+| SC-011 / SC-012 | T158 / T146–T148 | T163 / T146–T148 |
+
+**Checkpoint**: a whole meal (foods + preparation portions) is saved and edited in one action;
+preparations calculate from their ingredients; history never changes.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase dependencies
@@ -394,6 +453,8 @@ as "basado en N de M días", using the dashboard's sign convention and each day'
   US1 (`onProfileCreated`, selector pet lookup) and US2/US3/US5 services.
 - **US8 (Phase 10)**: depends on US3 (expenditure from snapshots). Independent of US6/US7.
 - **Polish (Phase 11)**: after the desired stories are complete. T117 needs US1–US7 routes.
+- **US9 (Phase 12)**: depends on US2 (journal, snapshots, templates) and US4 (custom foods, quick
+  lists). T146–T148 and T149 first; T150 → T151/T152 → T153 → T154 → T155; UI T157 → T158–T161.
 
 ```text
 Setup → Foundational → US1 ─┬─► US2 ─┬─► US3 ─┬─► US6 ─► US7

@@ -8,6 +8,7 @@ export interface FoodSummary {
   category: string;
   preparationState: 'raw' | 'cooked' | 'prepared' | 'packaged';
   brand: string | null;
+  productForm?: 'as_sold' | 'dry_mix' | 'concentrate';
   basis: 'g' | 'ml';
   kcalPer100: number;
   proteinPer100: number;
@@ -20,21 +21,70 @@ export interface FoodSummary {
   hasOverride: boolean;
 }
 
+export type PortionInput = { mode: 'whole' } | { mode: 'servings'; servings: number } | { mode: 'amount'; quantity: number; unit: 'g' | 'ml' };
+
 export interface EntryView {
   id: string;
   mealId: string;
-  foodId: string;
+  kind: 'food' | 'recipe';
+  foodId: string | null;
   name: string;
   brand: string | null;
   preparationState: FoodSummary['preparationState'];
+  productForm: 'as_sold' | 'dry_mix' | 'concentrate';
   source: string;
-  quantity: number;
-  unit: 'g' | 'ml';
+  /** Consumed amount; null for a recipe portion whose final yield is unknown. */
+  quantity: number | null;
+  unit: 'g' | 'ml' | null;
   approximate: boolean;
   eatenAt: string;
   note: string | null;
   nutrients: Nutrients;
-  per100: { basis: 'g' | 'ml'; densityGPerMl: number | null; kcal: number; proteinG: number; carbsG: number; fatG: number };
+  per100: { basis: 'g' | 'ml'; densityGPerMl: number | null; kcal: number; proteinG: number; carbsG: number; fatG: number } | null;
+  recipe: { recipeId: string; recipeVersionId: string; portion: { mode: 'whole' | 'servings' | 'amount'; servings: number | null; factor: number } } | null;
+}
+
+export interface RecipeView {
+  id: string;
+  name: string;
+  hidden: boolean;
+  versionId: string;
+  versionNo: number;
+  isCurrentVersion: boolean;
+  notes: string | null;
+  servings: number | null;
+  yield: { quantity: number; unit: 'g' | 'ml' } | null;
+  homogeneous: boolean;
+  approximate: boolean;
+  ingredients: {
+    foodId: string;
+    foodVersionId: string;
+    name: string;
+    brand: string | null;
+    preparationState: FoodSummary['preparationState'];
+    productForm: 'as_sold' | 'dry_mix' | 'concentrate';
+    source: string;
+    quantity: number;
+    unit: 'g' | 'ml';
+    approximate: boolean;
+    nutrients: Nutrients;
+    per100: { basis: 'g' | 'ml'; densityGPerMl: number | null; kcal: number; proteinG: number; carbsG: number; fatG: number };
+  }[];
+  totals: Nutrients;
+  incompleteNutrients: OptionalNutrient[];
+  perServing: Nutrients | null;
+  per100OfYield: (Nutrients & { unit: 'g' | 'ml' }) | null;
+  updatedAt: string;
+}
+
+export type TemplateItem =
+  | { kind: 'food'; foodId: string; quantity: number; unit: 'g' | 'ml'; name: string }
+  | { kind: 'recipe'; recipeId: string; portion: PortionInput; name: string };
+
+export interface TemplateView {
+  id: string;
+  name: string;
+  items: TemplateItem[];
 }
 
 export interface MealView {

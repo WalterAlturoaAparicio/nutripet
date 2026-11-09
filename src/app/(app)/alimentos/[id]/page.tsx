@@ -17,6 +17,8 @@ export interface FoodDetail {
   category: string;
   preparationState: 'raw' | 'cooked' | 'prepared' | 'packaged';
   brand: string | null;
+  productForm: 'as_sold' | 'dry_mix' | 'concentrate';
+  preparationInstructions: string | null;
   isCustom: boolean;
   isFavorite: boolean;
   hasOverride: boolean;
@@ -74,6 +76,18 @@ export default function FoodDetailPage({ params }: { params: Promise<{ id: strin
         <span className="text-xs text-ink-muted">{t(`foods.categories.${food.category}`)}</span>
         {food.brand && <span className="text-xs text-ink-muted">· {t('foods.brand')}: {food.brand}</span>}
       </p>
+      {food.productForm !== 'as_sold' && (
+        <div role="note" className="mt-3 rounded-xl bg-expenditure-soft p-3 text-sm">
+          <p>
+            <strong>{t(`foods.productForms.${food.productForm}`)}:</strong> {t('recipes.dryWarning')}
+          </p>
+          {food.preparationInstructions && (
+            <p className="mt-1">
+              {t('foods.preparationInstructions').replace(' (opcional)', '')}: {food.preparationInstructions}
+            </p>
+          )}
+        </div>
+      )}
 
       <section className="card mt-4">
         <h2 className="mb-2 font-semibold">{p.basis === 'ml' ? t('foods.per100ml') : t('foods.per100g')}</h2>

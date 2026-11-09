@@ -22,6 +22,9 @@ The technical approach is a single **TypeScript Next.js PWA** with a **SQLite** 
 - **Device enrollment** plus protected profile creation (FR-008) keep profile names away from
   unknown clients.
 - Gamification rewards are identical across goals; only **messages** are goal-specific (FR-078).
+- **Multi-item meals** are built client-side and saved in one transaction; **preparations**
+  (recipes) are immutable versions of ingredient compositions whose totals are the sum of each
+  ingredient's contribution; meal entries reference the exact recipe version (FR-035a, FR-038–FR-049).
 
 Research decisions: [research.md](./research.md). Schema: [data-model.md](./data-model.md).
 Interfaces: [contracts/](./contracts/).
@@ -108,7 +111,7 @@ specs/001-nutripet-mvp/
 ```text
 src/
 ├── domain/                  # pure TS, no I/O, no React/Next imports
-│   ├── nutrition/           # scaleNutrients, sumNutrients, unit conversion
+│   ├── nutrition/           # scale.ts (scaleNutrients, sumNutrients, unit conversion), recipe.ts (computePreparation, portionNutrients)
 │   ├── energy/              # bmr, tdee, targets, cautions, activity MET, daily balance
 │   ├── tracking/            # dayStatus, streaks, freezes, month %
 │   ├── gamification/        # xp rules & caps, stages, mood, treats, milestones
@@ -118,13 +121,13 @@ src/
 │   ├── db/                  # drizzle schema, migrations, client, seed
 │   ├── auth/                # PIN/recovery hashing, sessions, lockouts, devices, setup token, rate limit, requireProfile()
 │   ├── modules/             # thin services per bounded area, calling domain + db
-│   │   ├── profiles/ day-energy/ foods/ journal/ activity/ weight/ calendar/ pet/ progress/
+│   │   ├── profiles/ day-energy/ foods/ journal/ recipes/ activity/ weight/ calendar/ pet/ progress/
 │   └── validation/          # shared Zod schemas
 ├── app/                     # Next.js App Router
 │   ├── (auth)/              # select (selector + PIN), onboarding, enroll, recover
 │   ├── (app)/               # inicio (home; `/` redirects there), diario, actividad, calendario, progreso, alimentos, mascota, perfil
 │   └── api/v1/              # route handlers (per contracts/http-api.md)
-├── ui/                      # React components (pet, progress rings, food search, charts)
+├── ui/                      # React components (pet, progress rings, food search, charts, journal/ meal builder, recipes/ builder + portion picker)
 └── i18n/es.ts               # Spanish strings
 
 scripts/
@@ -178,6 +181,7 @@ Slices follow the spec's user-story priorities. Each slice ends demonstrable and
 | 9 | US7 Pet | Pet state, XP and treat events, caps, revocation, stages, mood, feeding, milestones, accessories, goal-specific messages, pet screen `/mascota`, SVG art | Quickstart 10 |
 | 10 | US8 Progress | Weekly and monthly summaries, intake chart | US8 scenarios |
 | 11 | Hardening | Docker/Caddy, backups, e2e suite, accessibility pass, attribution review, `docs/` deliverables | Full quickstart |
+| 12 | US9 Multi-food meals & preparations | Domain preparation functions + tests; migration 0009 (recipe, recipe_version, recipe_ingredient; recipe-aware meal_entry/meal_template_item; food.product_form); water reference record; recipes module/routes; `PUT /meals/{id}`; meal builder, recipe builder, portion picker; product form on custom foods | Quickstart 15, 16; `tests/unit/domain/recipe.test.ts`, `tests/integration/meals-recipes.test.ts`, `migration-recipes.test.ts` |
 
 Phases 1 and 3 can proceed in parallel after phase 0. Phases 6–10 depend on 4–5 but are
 independent of each other.
@@ -199,8 +203,14 @@ independent of each other.
   - protected profile creation and selector discovery (no device, no token, wrong token);
   - past-day summaries unchanged after a settings change; backfill resolves the effective version;
   - streak cache recompute after backfill; backfill outside the window earns no freeze;
-  - XP and treat revocation on delete.
+  - XP and treat revocation on delete;
+  - multi-item meals saved/edited atomically, recipe versions and catalog updates never changing
+    logged entries, migration 0009 preserving existing rows (US9).
+- **Preparations (unit)**: powder in water/milk, quantity variations, zero-calorie water, a nonzero
+  liquid, multi-ingredient, whole/partial/servings, yield ≠ ingredient sum, invalid references,
+  homogeneous vs non-homogeneous; property: portions of the yield add up to the total.
 - **E2E (Playwright, mobile viewport)**: onboarding with two profiles; log breakfast by grams;
+  build a multi-food meal with a preparation and save it at once;
   activity and balance; calendar completion; profile switch isolation.
 - **Data quality**: import reports are checked in CI. Zero validation errors are allowed for the
   enabled sources. Atwater warnings are reviewed.

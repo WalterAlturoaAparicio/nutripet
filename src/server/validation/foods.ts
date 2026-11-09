@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FOOD_CATEGORIES } from '../db/schema/foods';
+import { FOOD_CATEGORIES, PRODUCT_FORMS } from '../db/schema/foods';
 
 const g = (max: number) => z.number().min(0, 'No puede ser negativo.').max(max);
 const optional = (max: number) => g(max).nullable().optional();
@@ -35,6 +35,8 @@ export const createCustomFoodSchema = nutrientChecks(
     category: z.enum(FOOD_CATEGORIES),
     preparationState: z.enum(['raw', 'cooked', 'prepared', 'packaged']),
     brand: z.string().trim().max(60).nullable().optional(),
+    productForm: z.enum(PRODUCT_FORMS).optional(),
+    preparationInstructions: z.string().trim().max(300).nullable().optional(),
     sourceNote: z.string().trim().min(1, 'Indica de dónde salen los valores.').max(200),
     ...nutrientFields,
   }),
@@ -48,6 +50,8 @@ export const updateCustomFoodSchema = z
     category: z.enum(FOOD_CATEGORIES).optional(),
     preparationState: z.enum(['raw', 'cooked', 'prepared', 'packaged']).optional(),
     brand: z.string().trim().max(60).nullable().optional(),
+    productForm: z.enum(PRODUCT_FORMS).optional(),
+    preparationInstructions: z.string().trim().max(300).nullable().optional(),
     sourceNote: z.string().trim().min(1).max(200).optional(),
     nutrients: nutrientChecks(z.object(nutrientFields)).optional(),
   })

@@ -2,6 +2,7 @@ export * from './profiles';
 export { profileSettingsVersion, dayEnergySnapshot } from './settings';
 export * from './devices';
 export * from './foods';
+export * from './recipes';
 export * from './journal';
 export * from './templates';
 export * from './activity';

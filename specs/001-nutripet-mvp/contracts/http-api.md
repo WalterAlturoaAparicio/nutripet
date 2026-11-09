@@ -57,7 +57,7 @@ birthDate, sexForFormula, heightCm, bmrFormula, calcVersion }`.
 | `GET /foods/mine` | → `[FoodSummary]` the profile's own (non-hidden) custom foods |
 | `GET /foods/quick` | → `{ favorites: [FoodSummary], frequent: [FoodSummary], templates: [TemplateSummary] }` |
 | `GET /foods/{id}` | → `FoodDetail` (current or override version, all nutrients per 100, source, sourceFoodId, sourceVersion, attribution) |
-| `POST /foods` | custom food `{ nameEs, nameEn?, aliases?, category, preparationState, brand?, basis, kcal, proteinG, carbsG, fatG, fiberG?, sugarG?, sodiumMg?, densityGPerMl?, sourceNote? }` → `201 FoodDetail` |
+| `POST /foods` | custom food `{ nameEs, nameEn?, aliases?, category, preparationState, productForm?, preparationInstructions?, brand?, basis, kcal, proteinG, carbsG, fatG, fiberG?, sugarG?, sodiumMg?, densityGPerMl?, sourceNote? }` → `201 FoodDetail` |
 | `PATCH /foods/{id}` | own custom foods only → new version |
 | `DELETE /foods/{id}` | own custom foods only → soft-hide |
 | `POST /foods/{id}/override` | nutrient fields → creates a `user_correction` version for this profile |
@@ -65,7 +65,7 @@ birthDate, sexForFormula, heightCm, bmrFormula, calcVersion }`.
 | `PUT /foods/{id}/favorite` / `DELETE …/favorite` | → `204` |
 | `GET /sources` | → data sources with attribution text |
 
-`FoodSummary` = `{ id, nameEs, nameEn, category, preparationState, brand, basis, kcalPer100,
+`FoodSummary` = `{ id, nameEs, nameEn, category, preparationState, productForm, brand, basis, kcalPer100,
 proteinPer100, carbsPer100, fatPer100, source, isFavorite, isCustom, hasOverride }`.
 
 ## Journal
@@ -74,12 +74,13 @@ proteinPer100, carbsPer100, fatPer100, source, isFavorite, isCustom, hasOverride
 |---|---|
 | `GET /days/{date}` | → `DaySummary` (see below) |
 | `POST /days/{date}/entries` | `{ occasion, label?, foodId, quantity, unit, eatenAt?, note?, confirm? }` → `201 { entry, day: DaySummary }` |
-| `POST /days/{date}/entries/batch` | `{ occasion, label?, items: [{ foodId, quantity, unit }] }` → `201 { entries, day }` |
-| `PATCH /entries/{id}` | `{ quantity?, unit?, foodId?, occasion?, note?, eatenAt? }` → `{ entry, day }` |
+| `POST /days/{date}/entries/batch` | `{ occasion, label?, items: [MealItem] (1–30), confirm? }` → `201 { mealId, entries, day }`. All items are validated first; the meal is saved completely or not at all (FR-035a) |
+| `PUT /meals/{mealId}` | `{ items: [{ entryId, quantity, unit } \| { entryId, portion } \| MealItem] (1–30), confirm? }` → `{ mealId, day }`. Saves the whole meal: kept entries keep their snapshot, new items are snapshotted now, omitted entries are deleted (FR-035a) |
+| `PATCH /entries/{id}` | `{ quantity?, unit?, foodId?, portion?, occasion?, note?, eatenAt? }` → `{ entry, day }`. `portion` only for recipe entries, recomputed from the entry's own recipe version (FR-046) |
 | `DELETE /entries/{id}` | → `{ day }` |
 | `POST /meals/{mealId}/duplicate` | `{ toDate, toOccasion }` → `{ entries, day }` |
 | `POST /templates` | `{ name, fromMealId }` or `{ name, items }` → `201 Template` |
-| `GET /templates` / `DELETE /templates/{id}` | |
+| `GET /templates` / `GET /templates/{id}` / `DELETE /templates/{id}` | → `Template` = `{ id, name, items: [{ kind: 'food', foodId, quantity, unit, name } \| { kind: 'recipe', recipeId, portion, name }] }` |
 | `POST /templates/{id}/apply` | `{ date, occasion }` → `{ entries, day }` |
 | `PUT /days/{date}/flags` | `{ restDay?, markedComplete? }` → `{ day }` |
 
@@ -95,7 +96,35 @@ frozen: boolean }, isEstimate: true } (target and estimates come from the day en
 [{ source, amount }] (present from US7) }`.
 
 `Entry` includes `preparationState` copied from the food variant's snapshot (it is not a separate
-input field).
+input field), plus `kind: 'food' | 'recipe'`, `productForm`, `quantity`/`unit` (null for a recipe
+portion whose yield is unknown), `per100` (null when unknown) and `recipe: { recipeId,
+recipeVersionId, portion: { mode, servings, factor } } | null`.
+
+`MealItem` = `{ foodId, quantity, unit }` | `{ recipeId, portion }`;
+`Portion` = `{ mode: 'whole' }` | `{ mode: 'servings', servings }` | `{ mode: 'amount', quantity, unit }`.
+
+## Preparations (recipes)
+
+| Method & path | Body / Query → Response |
+|---|---|
+| `GET /recipes` | → `[RecipeView]` the profile's visible recipes (current versions) |
+| `POST /recipes` | `RecipeInput` → `201 RecipeView` (version 1) |
+| `GET /recipes/{id}?versionId=` | → `RecipeView` of the current version, or of `versionId` (also for hidden recipes, so logged meals stay explainable) |
+| `PUT /recipes/{id}` | `RecipeInput` → `RecipeView` of a **new** version; previous versions and logged meals are untouched (FR-046) |
+| `DELETE /recipes/{id}` | → `204` soft-hide |
+
+`RecipeInput` = `{ name, notes?, servings?, yieldQuantity?, yieldUnit?, homogeneous?, ingredients:
+[{ foodId, quantity, unit }] (1–30) }` (`yieldQuantity` and `yieldUnit` together or not at all).
+
+`RecipeView` = `{ id, name, hidden, versionId, versionNo, isCurrentVersion, notes, servings,
+yield: { quantity, unit } | null, homogeneous, approximate, ingredients: [{ foodId, foodVersionId,
+name, brand, preparationState, productForm, source, quantity, unit, approximate, nutrients,
+per100 }], totals: Nutrients, incompleteNutrients, perServing: Nutrients | null, per100OfYield:
+(Nutrients & { unit }) | null, updatedAt }`.
+
+Domain errors return `422 VALIDATION` with `reason` ∈ `invalid_reference`, `invalid_quantity`,
+`no_ingredients`, `invalid_yield`, `invalid_servings`, `servings_unknown`, `yield_unknown`,
+`unit_mismatch`, `portion_exceeds_total`, `not_homogeneous`.
 
 `Nutrients` = `{ kcal, proteinG, carbsG, fatG, fiberG|null, sugarG|null, sodiumMg|null }`.
 

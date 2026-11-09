@@ -75,9 +75,11 @@ Expected: all green. The domain tests include every reference example in
 | 12 | Disconnect the network and repeat scenario 3 | Search and logging still work | FR-025 |
 | 13 | Switch profile and press the browser back button | Selector shown; the previous profile's data is not visible | FR-005 |
 | 14 | Open "¿Cómo se calcula?" on the dashboard | Shows the formula, inputs, multiplier, MET values, the settings version in effect, and the no-double-counting note | FR-018 |
+| 15 | Open "Agregar comida", choose Desayuno and add huevo 100 g, pan 60 g, queso 30 g without leaving the sheet; edit the bread to 80 g, remove the cheese, save. Then open the meal's "⋯ → Editar comida completa", add mango 70 g and save | Rows stay visible while searching; each row shows qty, unit, kcal, P/C/F; the meal total updates on every change; one save stores all rows; after the edit, kept rows keep their values per 100 | FR-035a, SC-011 |
+| 16 | Create a custom food "Refresco en polvo" (dry mix, 400 kcal/100 g). In the meal builder choose "Nueva preparación": powder 20 g + "+ Agua" 300 ml, final quantity 320 ml → save and use; log 200 ml. Then edit the preparation (25 g powder) and re-import/correct the powder | Preparation shows 80 kcal total and 25 kcal/100 ml; the logged entry shows 50 kcal and "200 ml de 320 ml"; logging the powder directly warns that values are for the dry product; after the edits the logged entry still shows 50 kcal and its portion edit uses the old version | FR-038–FR-049, SC-012 |
 
 ## Done criteria
 
-All automated checks pass, scenarios 1–14 behave as described, the catalog import report shows no
+All automated checks pass, scenarios 1–16 behave as described, the catalog import report shows no
 validation errors for the enabled sources, and every item missing from the coverage report is
 listed in `data/sources/KNOWN_GAPS.md`.

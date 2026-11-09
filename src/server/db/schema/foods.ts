@@ -20,8 +20,16 @@ export const FOOD_CATEGORIES = [
 ] as const;
 export type FoodCategory = (typeof FOOD_CATEGORIES)[number];
 
-export const DATA_SOURCE_IDS = ['usda_fdc', 'usda_fndds', 'tcac', 'off', 'user', 'user_correction'] as const;
+export const DATA_SOURCE_IDS = ['usda_fdc', 'usda_fndds', 'tcac', 'off', 'reference', 'user', 'user_correction'] as const;
 export type DataSourceId = (typeof DATA_SOURCE_IDS)[number];
+
+/**
+ * Physical form the nutrition values refer to (FR-048). `as_sold` = ready to eat/drink as stored;
+ * `dry_mix` (e.g. lemonade or chocolate powder) and `concentrate` are values for the product
+ * BEFORE preparation and never describe the prepared beverage.
+ */
+export const PRODUCT_FORMS = ['as_sold', 'dry_mix', 'concentrate'] as const;
+export type ProductForm = (typeof PRODUCT_FORMS)[number];
 
 export const dataSource = sqliteTable('data_source', {
   id: text('id', { enum: DATA_SOURCE_IDS }).primaryKey(),
@@ -63,6 +71,8 @@ export const food = sqliteTable(
     category: text('category', { enum: FOOD_CATEGORIES }).notNull(),
     preparationState: text('preparation_state', { enum: ['raw', 'cooked', 'prepared', 'packaged'] }).notNull(),
     brand: text('brand'),
+    productForm: text('product_form', { enum: PRODUCT_FORMS }).notNull().default('as_sold'),
+    preparationInstructions: text('preparation_instructions'),
     currentVersionId: text('current_version_id'),
     sourceNote: text('source_note'),
     hiddenAt: text('hidden_at'),

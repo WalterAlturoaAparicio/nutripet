@@ -86,6 +86,32 @@ If the unit differs from the food's basis (g vs ml), the food's density is used.
 sugar, sodium) stay unknown, never 0, and totals say when they are incomplete. Values are stored at
 full precision and rounded only for display (kcal to integers, grams to one decimal).
 
+## Preparations (recipes)
+
+```text
+contribution(ingredient) = (quantity in the ingredient's basis / 100) × its value per 100
+preparation total        = Σ contribution(ingredient)
+per serving              = total / servings                     (only if servings are set)
+per 100 g/ml of the dish = total × 100 / actual final yield     (only if the yield was entered)
+consumed                 = total × factor
+  factor = 1 (whole) | n / servings | amount / yield  (≤ 1; "amount" only for uniform mixtures)
+```
+
+Each ingredient uses its **own** reference: a powder labeled 400 kcal per 100 g contributes
+`20 / 100 × 400 = 80 kcal` when 20 g are used. Water (reference record, 0 kcal) contributes 0, so
+adding water never changes the total; it only lowers the kcal per 100 ml of the drink. Milk or any
+other liquid adds its own contribution. The values per 100 g of the powder are **never** used as
+values per 100 ml of the prepared drink.
+
+The final yield is what the user weighs or measures; it is not the sum of the ingredients (cooking
+evaporates water, oats absorb milk). Without it, there are no per-100 values and portions can only
+be "whole" or "servings". For mixtures that are not uniform (e.g. rice with egg on top), the
+person logs the whole dish, equal servings, or the ingredients they actually ate.
+
+Every saved change creates a new immutable recipe version. A logged portion stores the version it
+used and is always recomputed from it, so editing the recipe or the catalog never changes history.
+Functions: `src/domain/nutrition/recipe.ts`.
+
 ## Weight trend
 
 Each day's value is that day's latest record. The trend is a 7-day trailing moving average over the

@@ -56,6 +56,19 @@ pnpm import:coverage     # checks the FR-024 list; missing items must be in KNOW
 - `data/sources/tcac/README.md`: how the Colombian table will be transcribed once the license allows
   it.
 
+## Reference records and product forms
+
+- Source `reference` ("Valores de referencia de NutriPet") holds only records whose values are
+  physically established. Today it contains **Agua** (per 100 ml, density 1 g/ml, 0 kcal, protein,
+  carbohydrate, fat, fiber and sugar; sodium unknown because it depends on the supply). It is
+  seeded idempotently by `(data_source, source_food_id)` (`src/server/db/seed/reference-foods.ts`).
+  No other liquid is assumed to be zero.
+- `food.product_form` tells what the values describe: `as_sold`, `dry_mix` (powder) or
+  `concentrate`. A dry product and its prepared drink are separate records, each with its own
+  source; prepared values are never estimated into the powder's record. Without a verified
+  prepared record, users build a preparation (powder + liquid) whose values are calculated from the
+  ingredients.
+
 ## Known gaps
 
 See [`data/sources/KNOWN_GAPS.md`](../data/sources/KNOWN_GAPS.md). Currently:

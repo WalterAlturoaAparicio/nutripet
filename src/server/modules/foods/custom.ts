@@ -3,7 +3,7 @@
  * Corrections create a `user_correction` food version used only by that profile; past entries keep
  * their snapshots, and other profiles keep the catalog values.
  */
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import { addDays } from '@/domain/dates';
 import { db, tx, type Db } from '../../db/client';
 import { food, foodAlias, foodFavorite, foodOverride, foodVersion, mealEntry } from '../../db/schema';
@@ -74,6 +74,8 @@ export function createCustomFood(profileId: string, input: CustomFoodInput) {
         category: input.category,
         preparationState: input.preparationState,
         brand: input.brand ?? null,
+        productForm: input.productForm ?? 'as_sold',
+        preparationInstructions: input.preparationInstructions ?? null,
         sourceNote: input.sourceNote,
         createdAt: ts,
         updatedAt: ts,
@@ -159,6 +161,7 @@ function summaryFor(profileId: string, foodId: string): FoodSummary | null {
     category: f.category,
     preparationState: f.preparationState,
     brand: f.brand,
+    productForm: f.productForm,
     basis: f.per100.basis,
     kcalPer100: f.per100.kcal,
     proteinPer100: f.per100.proteinG,
@@ -185,12 +188,12 @@ export function quickLists(profileId: string) {
   const frequentRows = db()
     .select({ id: mealEntry.foodId, n: sql<number>`count(*)` })
     .from(mealEntry)
-    .where(and(eq(mealEntry.profileId, profileId), gte(mealEntry.localDate, since)))
+    .where(and(eq(mealEntry.profileId, profileId), gte(mealEntry.localDate, since), isNotNull(mealEntry.foodId)))
     .groupBy(mealEntry.foodId)
     .orderBy(desc(sql`count(*)`))
     .limit(8)
     .all();
-  const frequent = frequentRows.map((r) => summaryFor(profileId, r.id)).filter((x): x is FoodSummary => x !== null);
+  const frequent = frequentRows.map((r) => summaryFor(profileId, r.id!)).filter((x): x is FoodSummary => x !== null);
   return {
     favorites: favorites.map((f) => withLastUse(profileId, f)),
     frequent: frequent.map((f) => withLastUse(profileId, f)),

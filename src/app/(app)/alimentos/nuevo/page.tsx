@@ -19,6 +19,8 @@ function NewFoodInner() {
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>('preparaciones');
   const [state, setState] = useState<'raw' | 'cooked' | 'prepared' | 'packaged'>('prepared');
   const [brand, setBrand] = useState('');
+  const [productForm, setProductForm] = useState<'as_sold' | 'dry_mix' | 'concentrate'>('as_sold');
+  const [instructions, setInstructions] = useState('');
   const [sourceNote, setSourceNote] = useState('');
   const [nutrients, setNutrients] = useState<NutrientDraft>(emptyNutrients());
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
@@ -36,6 +38,8 @@ function NewFoodInner() {
         category,
         preparationState: state,
         brand: brand.trim() || null,
+        productForm,
+        preparationInstructions: instructions.trim() || null,
         sourceNote: sourceNote.trim(),
         aliases: params.get('name') && params.get('name') !== name.trim() ? [params.get('name')!] : [],
         ...nutrientPayload(nutrients),
@@ -78,6 +82,21 @@ function NewFoodInner() {
             />
           )}
         </Field>
+        <Field label={t('foods.productForm')} help={t('foods.productFormHelp')}>
+          {() => (
+            <Segmented
+              label={t('foods.productForm')}
+              value={productForm}
+              onChange={setProductForm}
+              options={(['as_sold', 'dry_mix', 'concentrate'] as const).map((f) => ({ value: f, label: t(`foods.productForms.${f}`) }))}
+            />
+          )}
+        </Field>
+        {productForm !== 'as_sold' && (
+          <Field label={t('foods.preparationInstructions')}>
+            {(id) => <input id={id} className="input" value={instructions} maxLength={300} onChange={(e) => setInstructions(e.target.value)} />}
+          </Field>
+        )}
         <Field label={`${t('foods.brand')} (opcional)`}>
           {(id) => <input id={id} className="input" value={brand} maxLength={60} onChange={(e) => setBrand(e.target.value)} />}
         </Field>

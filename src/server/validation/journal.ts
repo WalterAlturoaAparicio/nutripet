@@ -9,6 +9,22 @@ const quantity = z
   .positive('La cantidad debe ser mayor que 0.')
   .max(QUANTITY_MAX, `La cantidad máxima por registro es ${QUANTITY_MAX}.`);
 const label = z.string().trim().min(1).max(40).optional();
+
+/** How much of a saved preparation was eaten (FR-045). */
+export const portionSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('whole') }),
+  z.object({
+    mode: z.literal('servings'),
+    servings: z.number({ error: 'Indica cuántas porciones.' }).positive('Las porciones deben ser mayores que 0.').max(100),
+  }),
+  z.object({ mode: z.literal('amount'), quantity, unit }),
+]);
+
+const foodItem = z.object({ foodId: id, quantity, unit });
+const recipeItem = z.object({ recipeId: id, portion: portionSchema });
+/** One meal item: a food with its quantity, or a portion of a saved preparation. */
+export const mealItemSchema = z.union([foodItem, recipeItem]);
+const mealItems = z.array(mealItemSchema).min(1, 'Agrega al menos un alimento.').max(30, 'Máximo 30 alimentos por comida.');
 const isoDateTime = z.iso.datetime({ offset: true }).optional();
 
 const requireLabelForExtra = <T extends { occasion?: string; label?: string }>(v: T) => v.occasion !== 'extra' || Boolean(v.label);
@@ -23,16 +39,36 @@ export const batchEntriesSchema = z
   .object({
     occasion,
     label,
-    items: z.array(z.object({ foodId: id, quantity, unit })).min(1).max(30),
+    items: mealItems,
     confirm: z.boolean().optional(),
   })
   .refine(requireLabelForExtra, labelIssue);
+
+/**
+ * Saves the whole content of an existing meal at once (FR-035a): items with an entryId keep their
+ * snapshot and only change quantity/portion; items without one are added; omitted entries are removed.
+ */
+export const updateMealSchema = z.object({
+  items: z
+    .array(
+      z.union([
+        z.object({ entryId: id, quantity, unit }),
+        z.object({ entryId: id, portion: portionSchema }),
+        foodItem,
+        recipeItem,
+      ]),
+    )
+    .min(1, 'Agrega al menos un alimento.')
+    .max(30, 'Máximo 30 alimentos por comida.'),
+  confirm: z.boolean().optional(),
+});
 
 export const updateEntrySchema = z
   .object({
     quantity: quantity.optional(),
     unit: unit.optional(),
     foodId: id.optional(),
+    portion: portionSchema.optional(),
     occasion: occasion.optional(),
     label,
     note,
@@ -48,7 +84,7 @@ export const duplicateMealSchema = z
 
 export const createTemplateSchema = z.union([
   z.object({ name: z.string().trim().min(1).max(40), fromMealId: id }),
-  z.object({ name: z.string().trim().min(1).max(40), items: z.array(z.object({ foodId: id, quantity, unit })).min(1).max(30) }),
+  z.object({ name: z.string().trim().min(1).max(40), items: mealItems }),
 ]);
 
 export const applyTemplateSchema = z
@@ -63,3 +99,6 @@ export const dateParam = localDate;
 
 export type AddEntryInput = z.infer<typeof addEntrySchema>;
 export type UpdateEntryInput = z.infer<typeof updateEntrySchema>;
+export type MealItemInput = z.infer<typeof mealItemSchema>;
+export type PortionInput = z.infer<typeof portionSchema>;
+export type UpdateMealInput = z.infer<typeof updateMealSchema>;

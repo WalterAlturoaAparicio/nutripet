@@ -7,14 +7,16 @@ import { OCCASIONS, type Occasion } from '@/domain/types';
 import { t } from '@/i18n/es';
 import { api, ClientApiError } from '@/ui/api';
 import { ErrorNote, Sheet, Spinner } from '@/ui/kit';
-import { formatKcal, formatQuantity } from '@/ui/format/units';
+import { formatKcal } from '@/ui/format/units';
 import { AddFoodFlow } from '@/ui/journal/AddFoodFlow';
 import { DayTotals } from '@/ui/journal/DayTotals';
 import { QuantitySheet } from '@/ui/journal/QuantitySheet';
 import { StateChip } from '@/ui/foods/FoodSearch';
 import { DayFlags } from '@/ui/journal/DayFlags';
+import { entryAmountText, entryPortion, recipeFacts } from '@/ui/journal/draft';
+import { PortionPicker } from '@/ui/recipes/PortionPicker';
 import { useMe, useToday } from '@/ui/hooks';
-import type { DaySummary, EntryView, FoodSummary, MealView } from '@/ui/types';
+import type { DaySummary, EntryView, FoodSummary, MealView, PortionInput, RecipeView } from '@/ui/types';
 
 function formatDay(date: string, today: string): string {
   if (date === today) return t('common.today');
@@ -31,6 +33,8 @@ function JournalInner() {
   const [day, setDay] = useState<DaySummary | null>(null);
   const [adding, setAdding] = useState<Occasion | null>(null);
   const [editing, setEditing] = useState<{ entry: EntryView; food: FoodSummary } | null>(null);
+  const [editingPortion, setEditingPortion] = useState<{ entry: EntryView; recipe: RecipeView } | null>(null);
+  const [editingMeal, setEditingMeal] = useState<MealView | null>(null);
   const [mealAction, setMealAction] = useState<MealView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,15 +51,27 @@ function JournalInner() {
   if (!date || !today) return <Spinner />;
   const go = (d: string) => router.replace(d === today ? '/diario' : `/diario?date=${d}`);
 
-  function openEdit(entry: EntryView) {
+  async function openEdit(entry: EntryView) {
+    if (entry.kind === 'recipe' && entry.recipe) {
+      // A portion is edited against the exact recipe version it was logged with (FR-046).
+      try {
+        const recipe = await api<RecipeView>('GET', `/api/v1/recipes/${entry.recipe.recipeId}?versionId=${entry.recipe.recipeVersionId}`);
+        setEditingPortion({ entry, recipe });
+      } catch (e) {
+        setError(e instanceof ClientApiError ? e.body.message : t('errors.generic'));
+      }
+      return;
+    }
+    if (!entry.per100 || !entry.foodId) return;
+    const per100 = entry.per100;
     // The preview uses the entry's own snapshot; the server also recomputes from it (FR-033).
     setEditing({
       entry,
       food: {
         id: entry.foodId, nameEs: entry.name, nameEn: null, category: '', preparationState: entry.preparationState,
-        brand: entry.brand, basis: entry.per100.basis, densityGPerMl: entry.per100.densityGPerMl, source: entry.source,
-        kcalPer100: entry.per100.kcal, proteinPer100: entry.per100.proteinG, carbsPer100: entry.per100.carbsG,
-        fatPer100: entry.per100.fatG, isFavorite: false, isCustom: false, hasOverride: false,
+        productForm: entry.productForm, brand: entry.brand, basis: per100.basis, densityGPerMl: per100.densityGPerMl,
+        source: entry.source, kcalPer100: per100.kcal, proteinPer100: per100.proteinG, carbsPer100: per100.carbsG,
+        fatPer100: per100.fatG, isFavorite: false, isCustom: false, hasOverride: false,
       },
     });
   }
@@ -73,10 +89,22 @@ function JournalInner() {
     }
   }
 
+  async function savePortion(portion: PortionInput) {
+    if (!editingPortion) return;
+    try {
+      const r = await api<{ day: DaySummary }>('PATCH', `/api/v1/entries/${editingPortion.entry.id}`, { portion, confirm: true });
+      setDay(r.day);
+      setEditingPortion(null);
+    } catch (e) {
+      setError(e instanceof ClientApiError ? (Object.values(e.body.fields ?? {})[0] ?? e.body.message) : t('errors.generic'));
+    }
+  }
+
   async function remove(entry: EntryView) {
     // Optimistic: drop the entry locally, then reconcile with the server's totals (FR-034).
     setDay((d) => d && { ...d, meals: d.meals.map((m) => ({ ...m, entries: m.entries.filter((e) => e.id !== entry.id) })) });
     setEditing(null);
+    setEditingPortion(null);
     try {
       setDay((await api<{ day: DaySummary }>('DELETE', `/api/v1/entries/${entry.id}`)).day);
     } catch {
@@ -131,7 +159,7 @@ function JournalInner() {
                               <span className="min-w-0">
                                 <span className="block truncate">{e.name}</span>
                                 <span className="flex items-center gap-1 text-xs text-ink-muted">
-                                  <StateChip state={e.preparationState} /> {formatQuantity(e.quantity, e.unit, me?.profile.foodUnit)}
+                                  <StateChip state={e.preparationState} /> {entryAmountText(e, me?.profile.foodUnit, t)}
                                   {e.approximate && ` · ${t('journal.approximate')}`}
                                 </span>
                               </span>
@@ -171,8 +199,8 @@ function JournalInner() {
             <QuantitySheet
               food={editing.food}
               foodUnit={me?.profile.foodUnit}
-              initialQuantity={editing.entry.quantity}
-              initialUnit={editing.entry.unit}
+              initialQuantity={editing.entry.quantity ?? undefined}
+              initialUnit={editing.entry.unit ?? undefined}
               confirmLabel={t('common.save')}
               onConfirm={saveEdit}
             />
@@ -183,12 +211,63 @@ function JournalInner() {
         )}
       </Sheet>
 
-      <MealActions meal={mealAction} date={date} onClose={() => setMealAction(null)} onDay={(d) => d.date === date && setDay(d)} />
+      <Sheet open={editingPortion !== null} title={t('common.edit')} onClose={() => setEditingPortion(null)}>
+        {editingPortion && (
+          <>
+            <PortionPicker
+              name={editingPortion.entry.name}
+              facts={recipeFacts(editingPortion.recipe)}
+              initial={entryPortion(editingPortion.entry)}
+              foodUnit={me?.profile.foodUnit}
+              confirmLabel={t('common.save')}
+              onConfirm={savePortion}
+            />
+            <button className="btn-secondary mt-3 w-full text-red-700" onClick={() => remove(editingPortion.entry)}>
+              {t('common.delete')}
+            </button>
+          </>
+        )}
+      </Sheet>
+
+      {editingMeal && (
+        <AddFoodFlow
+          key={`edit-${editingMeal.id}`}
+          open
+          date={date}
+          editMeal={editingMeal}
+          foodUnit={me?.profile.foodUnit}
+          onClose={() => setEditingMeal(null)}
+          onAdded={setDay}
+        />
+      )}
+
+      <MealActions
+        meal={mealAction}
+        date={date}
+        onClose={() => setMealAction(null)}
+        onDay={(d) => d.date === date && setDay(d)}
+        onEdit={(m) => {
+          setMealAction(null);
+          setEditingMeal(m);
+        }}
+      />
     </div>
   );
 }
 
-function MealActions({ meal, date, onClose, onDay }: { meal: MealView | null; date: string; onClose: () => void; onDay: (d: DaySummary) => void }) {
+function MealActions({
+  meal,
+  date,
+  onClose,
+  onDay,
+  onEdit,
+}: {
+  meal: MealView | null;
+  date: string;
+  onClose: () => void;
+  onDay: (d: DaySummary) => void;
+  onEdit: (m: MealView) => void;
+}) {
   const [toDate, setToDate] = useState(date);
   const [toOccasion, setToOccasion] = useState<Occasion>(meal?.occasion ?? 'breakfast');
   const [name, setName] = useState('');
@@ -202,6 +281,9 @@ function MealActions({ meal, date, onClose, onDay }: { meal: MealView | null; da
   if (!meal) return null;
   return (
     <Sheet open title={t(`journal.occasions.${meal.occasion}`)} onClose={onClose}>
+      <button className="btn-primary mb-5 w-full" onClick={() => onEdit(meal)}>
+        {t('journal.builder.editMeal')}
+      </button>
       <h3 className="mb-2 font-semibold">{t('journal.duplicate')}</h3>
       <div className="mb-2 flex gap-2">
         <input type="date" className="input" value={toDate} onChange={(e) => setToDate(e.target.value)} aria-label={t('journal.duplicateTo')} />

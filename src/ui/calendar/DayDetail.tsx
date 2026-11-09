@@ -5,9 +5,10 @@ import { useEffect, useState } from 'react';
 import { t } from '@/i18n/es';
 import { api } from '@/ui/api';
 import { Spinner } from '@/ui/kit';
-import { formatKcal, formatQuantity, formatSigned } from '@/ui/format/units';
+import { formatKcal, formatSigned } from '@/ui/format/units';
 import { DayTotals } from '@/ui/journal/DayTotals';
 import type { DaySummary } from '@/ui/types';
+import { entryAmountText } from '@/ui/journal/draft';
 
 /** Read-only summary of a past day: meals, activities, totals and estimates (FR-065). */
 export function DayDetail({ date }: { date: string }) {
@@ -30,7 +31,7 @@ export function DayDetail({ date }: { date: string }) {
           <ul className="text-sm text-ink-muted">
             {m.entries.map((e) => (
               <li key={e.id}>
-                {e.name} · {formatQuantity(e.quantity, e.unit)} · {formatKcal(e.nutrients.kcal)} kcal
+                {e.name} · {entryAmountText(e, 'metric', t)} · {formatKcal(e.nutrients.kcal)} kcal
               </li>
             ))}
           </ul>
